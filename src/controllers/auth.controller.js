@@ -1,0 +1,43 @@
+const userModel = require('../models/user.model')
+
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
+
+/**
+ * 
+ * @name registerUserController
+ * @description Register a new user, expects username, email, and password in the request body. It checks if the user already exists, hashes the password, and saves the new user to the database.
+ * @access Public
+ */
+
+async function registerUserController(req, res){
+
+    const {username, email, password} = req.body
+
+    if(!username || !email || !password){
+        return res.status(400).json({message: "Please provide all required fields"})
+    }
+
+    const isUserExist = await userModel.findOne({
+        $or: [ {username: username}, {email: email} ]
+    })
+    
+   
+    if(isUserExist){
+        return res.status(400).json({message: "User already exists with this username or email"})
+    }
+
+    const hash = await bcrypt.hash(password, 10)
+
+    const user = await userModel.create({
+        username,
+        email,
+        password: hash
+    })
+
+    res.status(201).json({message: "User registered successfully", user: user})
+}
+
+module.exports ={
+    registerUserController
+}
