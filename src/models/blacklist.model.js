@@ -5,5 +5,10 @@ const blacklistTokenSchema = new mongoose.Schema({
         type: String,
         required: [true, "token is required to be added in blacklist"]
     }
-
+},{
+    timestamps: true
 })
+
+
+const tokenBlacklist = mongoose.model('blacklistTokens', blacklistTokenSchema)
+module.exports = tokenBlacklist
