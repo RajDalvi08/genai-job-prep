@@ -43,19 +43,21 @@ A **Production-Ready Full Stack Gen AI Job Preparation Web Application** designe
 
 ```bash
 gen-ai/
-├── src/
-│   ├── config/
-│   │   └── database.js      # MongoDB connection configuration
-│   ├── controllers/
-│   │   └── auth.controller.js # Auth controller (Registration logic)
-│   ├── models/
-│   │   └── user.model.js    # Mongoose User Schema
-│   ├── routes/
-│   │   └── auth.routes.js   # Auth Express routers
-│   └── app.js               # Express application initialization
-├── .env                     # Local environment variables
-├── package.json             # Scripts & dependencies
-├── server.js                # Application entry point
+├── Backend/
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── database.js      # MongoDB connection configuration
+│   │   ├── controllers/
+│   │   │   └── auth.controller.js # Auth controller (Registration logic)
+│   │   ├── models/
+│   │   │   └── user.model.js    # Mongoose User Schema
+│   │   ├── routes/
+│   │   │   └── auth.routes.js   # Auth Express routers
+│   │   └── app.js               # Express application initialization
+│   ├── .env                     # Local environment variables
+│   ├── package.json             # Scripts & dependencies
+│   └── server.js                # Application entry point
+├── .gitignore               # Git ignore configuration
 └── README.md                # Project documentation
 ```
 
@@ -72,13 +74,14 @@ cd <your-repo-name>
 ```
 
 ### 2. Install Dependencies
-Make sure you have [Node.js](https://nodejs.org/) installed, then run:
+Navigate into the `Backend` directory and install dependencies:
 ```bash
+cd Backend
 npm install
 ```
 
 ### 3. Configure Environment Variables
-Create a `.env` file in the root directory and add the following:
+Create a `.env` file in the `Backend` directory and add the following:
 ```env
 PORT=3000
 MONGO_URI=your_mongodb_connection_string
