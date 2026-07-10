@@ -4,11 +4,18 @@
     padding-inline: 1.5rem;
     padding-block: 0.75rem;
     border-radius: 0.75rem;
+    cursor: pointer;
+
+    transition: all 0.3s ease-in-out;
 
     &.primary-button{
-    background-color: #4f46e5;
-}
+    background-color: #f00707;
+   color: whitesmoke;
 
 
 }
 
+    &:active{
+      transform: scale(0.9);
+    }
+}
