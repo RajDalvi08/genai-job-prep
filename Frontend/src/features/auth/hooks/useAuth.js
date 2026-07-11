@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import { AuthContext } from "../services/auth.context.jsx";
 import { login, logout, register, getMe } from "../services/auth.api.js";
 
@@ -44,5 +44,16 @@ export const useAuth = () => {
         setLoading(false);
         }
     }
+
+        //page refresh fix after login
+    useEffect(()=>{
+        const getAndSetUser = async()=>{
+            const data = await getMe()
+            setUser(data.user)
+            setLoading(false)//indicates tht loading is finished n app can now display now actual contents
+        }
+
+        getAndSetUser()
+    }, [])
     return {user, loading, handleRegister, handlelogin, handlelogout}
 }
