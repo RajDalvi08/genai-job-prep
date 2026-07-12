@@ -92,7 +92,7 @@ const preparationPlanSchema = new mongoose.Schema({
 
     },
     tasks:{
-        type: String,
+        type: [String],
         required: [true, "Tasks is required"]
     }
 })
@@ -107,15 +107,33 @@ const interviewReportSchema = new mongoose.Schema({
     resume:{
         type: String,
     },
-    matchScore:{
-        type: Number,
-        min: 0,
-        max: 100,
-    },
-    technicalQuestions: [ technicalQuestionSchema ],
-    behavioralQuestions : [ behavioralQuestionSchema ],
-    skillGaps : [ skillGapSchema ],
-    preparationPlan : [ preparationPlanSchema ]
+   matchScore: {
+    type:Number,
+    min:0,
+    max:100,
+    index:true
+},
+
+
+    technicalQuestions: {
+    type: [technicalQuestionSchema],
+    default: []
+},
+
+behavioralQuestions: {
+    type: [behavioralQuestionSchema],
+    default: []
+},
+
+skillGaps: {
+    type: [skillGapSchema],
+    default: []
+},
+
+preparationPlan: {
+    type: [preparationPlanSchema],
+    default: []
+},
 
 }, {
     timestamps: true
