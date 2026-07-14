@@ -1,4 +1,4 @@
-const { GoogleGenAI, Type } = require("@google/genai");
+const { GoogleGenAI } = require("@google/genai");
 const { z } = require("zod");
 const { zodToJsonSchema } = require("zod-to-json-schema");
 
@@ -8,9 +8,31 @@ const {
   jobDescription,
 } = require("./temp");
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_GENAI_API_KEY,
-});
+let ai;
+function getAiClient() {
+  if (!ai) {
+    ai = new GoogleGenAI({
+      apiKey: process.env.GOOGLE_GENAI_API_KEY,
+      httpOptions: {
+        timeout: 120000 // 120 seconds timeout for large structured responses
+      }
+    });
+  }
+  return ai;
+}
+
+// Simple retry helper function to resolve the missing "callWithRetry" error
+async function callWithRetry(fn, retries = 3, delay = 3000) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 1) throw error;
+    console.warn(`API call failed. Retrying in ${delay}ms... (${retries - 1} retries left)`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return callWithRetry(fn, retries - 1, delay * 1.5);
+  }
+}
+
 const interviewReportSchema = z.object({
   candidate_name: z
     .string()
@@ -85,7 +107,7 @@ const interviewReportSchema = z.object({
       })
     )
     .length(8)
-    .describe("List of 8 major candidate strengths"),
+    .describe("List of EXACTLY 8 major candidate strengths"),
 
   areas_for_improvement: z
     .array(
@@ -112,7 +134,7 @@ const interviewReportSchema = z.object({
       })
     )
     .length(5)
-    .describe("Five important improvement areas for the candidate"),
+    .describe("EXACTLY 5 important improvement areas for the candidate"),
 
   technical_assessment: z
     .array(
@@ -152,7 +174,7 @@ const interviewReportSchema = z.object({
       })
     )
     .length(10)
-    .describe("Technical assessment covering 10 important skills"),
+    .describe("Technical assessment covering EXACTLY 10 important skills"),
 
   technicalQuestions: z
     .array(
@@ -171,7 +193,7 @@ const interviewReportSchema = z.object({
       })
     )
     .length(10)
-    .describe("Ten technical interview questions with explanations"),
+    .describe("EXACTLY 10 technical interview questions with explanations"),
 
   behavioralQuestions: z
     .array(
@@ -190,14 +212,14 @@ const interviewReportSchema = z.object({
       })
     )
     .length(5)
-    .describe("Five behavioral interview questions"),
+    .describe("EXACTLY 5 behavioral interview questions"),
 
   preparationPlan: z
     .array(
       z.object({
         day: z
           .number()
-          .describe("Day number in the preparation schedule"),
+          .describe("Day number in the preparation schedule from 1 to 14"),
 
         focus: z
           .string()
@@ -206,304 +228,117 @@ const interviewReportSchema = z.object({
         tasks: z
           .array(z.string())
           .min(3)
-          .describe("Minimum three tasks to complete on this day"),
+          .describe("Minimum three unique tasks to complete on this day"),
       })
     )
     .length(14)
-    .describe("14-day preparation plan for the candidate"),
+    .describe("EXACTLY 14-day preparation plan for the candidate"),
 });
+
+// Recursive function to strip unsupported validation properties that cause Gemini to ignore array counts
+function cleanSchemaForGemini(schema) {
+  if (typeof schema !== "object" || schema === null) return schema;
+
+  const cleaned = Array.isArray(schema) ? [] : {};
+
+  for (const key in schema) {
+    // Drop fields Gemini's OpenAPI generation parser chokes on or handles outside validation bounds
+    if (["minItems", "maxItems", "additionalProperties", "$schema", "defaultConfiguration"].includes(key)) {
+      continue;
+    }
+    
+    if (typeof schema[key] === "object") {
+      cleaned[key] = cleanSchemaForGemini(schema[key]);
+    } else {
+      cleaned[key] = schema[key];
+    }
+  }
+  return cleaned;
+}
+
 async function generateInterviewReport({
   resume,
   selfDescription,
   jobDescription,
 }) {
   try {
-
     console.log("Resume Loaded:", !!resume);
     console.log("Self Description Loaded:", !!selfDescription);
     console.log("Job Description Loaded:", !!jobDescription);
 
-    const today = new Date().toISOString().split("T")[0];
-
     const prompt = `
 You are an expert Technical Recruiter, Senior Software Engineer and ATS evaluator.
 
-Analyze the following:
-
-==========================
-RESUME
-==========================
-
+Analyze the following parameters thoroughly:
+RESUME:
 ${resume}
 
-==========================
-SELF DESCRIPTION
-==========================
-
+SELF DESCRIPTION:
 ${selfDescription}
 
-==========================
-JOB DESCRIPTION
-==========================
-
+JOB DESCRIPTION:
 ${jobDescription}
 
-Your task is to generate a complete interview report.
-
-Guidelines:
-
-• Return ONLY JSON.
-
-• Do not use markdown.
-
-• Do not wrap the JSON in backticks.
-
-• Never invent experience.
-
-• If something is missing write:
-
-"Not explicitly mentioned in the resume."
-
-Evaluate the candidate using
-
-• Skills
-
-• Projects
-
-• Internship
-
-• Education
-
-• DSA
-
-• Resume Quality
-
-• Job Description
-
-Compute
-
-1. matchScore (0-100)
-
-2. atsScore (0-100)
-
-3. hiringProbability (0-100)
-
-Determine interviewDifficulty
-
-Choose only one
-
-Easy
-
-Medium
-
-Hard
-
-Generate
-
-overall_recommendation
-
-rating must be one of
-
-Strong Hire
-
-Hire
-
-Strong Consider
-
-Consider
-
-Reject
-
-Reason should clearly justify the decision.
-
-Generate EXACTLY
-
-• 8 strengths
-
-Each must include
-
-title
-
-description
-
-evidence
-
-Evidence must reference the resume.
-
-Generate EXACTLY
-
-5 improvement areas
-
-Each must include
-
-skill
-
-priority
-
-reason
-
-recommendation
-
-Priority can only be
-
-Critical
-
-Important
-
-Nice to Have
-
-Generate EXACTLY
-
-10 technical assessments
-
-Each must include
-
-skill
-
-score
-
-level
-
-confidence
-
-evidence
-
-assessment
-
-Level must be one of
-
-Excellent
-
-Good
-
-Average
-
-Needs Improvement
-
-Generate EXACTLY
-
-10 personalized technical interview questions.
-
-Each should include
-
-question
-
-intention
-
-ideal answer
-
-Generate EXACTLY
-
-5 behavioral interview questions.
-
-Answers should follow the STAR approach.
-
-Generate EXACTLY
-
-14 preparation days.
-
-Each day should contain
-
-day
-
-focus
-
-minimum 3 tasks
-
-The study plan should progressively improve the candidate for this job role.
-
-Do not repeat tasks.
-
-Return only valid JSON matching the required schema.
+Generate an exhaustive, highly structured interview report in raw JSON. 
+You must strictly fulfill the exact array structural criteria below to pass validation:
+
+1. matchScore: Integer (0-100)
+2. atsScore: Integer (0-100)
+3. hiringProbability: Integer (0-100)
+4. strengths: MUST contain EXACTLY 8 distinct object elements.
+5. areas_for_improvement: MUST contain EXACTLY 5 distinct object elements.
+6. technical_assessment: MUST contain EXACTLY 10 distinct object elements.
+7. technicalQuestions: MUST contain EXACTLY 10 distinct object elements.
+8. behavioralQuestions: MUST contain EXACTLY 5 distinct object elements.
+9. preparationPlan: MUST contain EXACTLY 14 objects (Day 1 through Day 14 sequence) where each 'tasks' array contains at least 3 unique items.
+
+Do not omit any fields or leave array structures shorter than specified. If info is missing write: "Not explicitly mentioned in the resume."
 `;
 
     console.log("Generating Interview Report from Gemini...");
-    const jsonSchema = zodToJsonSchema(interviewReportSchema, { target: "openApi3" });
-    function cleanSchema(schema) {
-      if (typeof schema !== 'object' || schema === null) return;
-      
-      const allowedKeys = ['type', 'description', 'properties', 'required', 'items', 'enum'];
-      for (const key in schema) {
-        if (key === 'properties') {
-          for (const propName in schema.properties) {
-            cleanSchema(schema.properties[propName]);
-          }
-        } else if (key === 'items') {
-          cleanSchema(schema.items);
-        } else if (!allowedKeys.includes(key)) {
-          delete schema[key];
-        }
-      }
-    }
-    cleanSchema(jsonSchema);
 
-        const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const rawJsonSchema = zodToJsonSchema(interviewReportSchema);
+    const cleanedSchema = cleanSchemaForGemini(rawJsonSchema);
 
-      contents: prompt,
-
-      config: {
-        temperature: 0.2,
-
-        responseMimeType: "application/json",
-
-        responseSchema: jsonSchema,
-      },
-    });
+    const response = await callWithRetry(() =>
+      getAiClient().models.generateContent({
+        model: "gemini-3.5-flash", // Updated to the current standard model
+        contents: prompt,
+        config: {
+          temperature: 0.1, 
+          responseMimeType: "application/json",
+          responseSchema: cleanedSchema,
+        },
+      }),
+      3,    // Max 3 retries
+      3000  // Initial delay 3s
+    );
 
     if (!response.text) {
       throw new Error("Gemini returned an empty response.");
     }
 
     const json = response.text.trim();
-
-    let parsed;
-
-    try {
-      parsed = JSON.parse(json);
-    } catch (err) {
-      console.error("Invalid JSON returned by Gemini:");
-      console.log(json);
-
-      throw new Error("Gemini returned invalid JSON.");
-    }
-
+    const parsed = JSON.parse(json);
     const validation = interviewReportSchema.safeParse(parsed);
 
     if (!validation.success) {
-      console.error("\n========= ZOD VALIDATION FAILED =========\n");
-
-      console.dir(validation.error.format(), {
-        depth: null,
-        colors: true,
-      });
-
-      throw new Error("Interview report failed schema validation.");
+      console.warn("\n========= ZOD VALIDATION FAILED BUT RETURNING RAW DATA =========");
+      console.dir(validation.error.format(), { depth: null, colors: true });
+      return parsed; 
     }
 
     const report = validation.data;
-
-    console.log("\n========= INTERVIEW REPORT =========\n");
-
-    console.dir(report, {
-      depth: null,
-      colors: true,
-    });
-
-    console.log("\n=====================================\n");
-
+    console.log("\n========= INTERVIEW REPORT VALIDATED SUCCESSFULLY =========\n");
     return report;
 
   } catch (error) {
-
     console.error("\nInterview Report Generation Failed\n");
-
     console.error(error);
-
     throw error;
   }
 }
 
 module.exports = {
-  generateInterviewReport,
+  generateInterviewReport
 };

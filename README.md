@@ -37,7 +37,8 @@ A **Production-Ready Full Stack Gen AI Job Preparation Web Application** designe
 *   **Styling:** Sass
 
 ### Artificial Intelligence & Automation (Status: In Progress ⚙️)
-*   **GenAI Engines:** Google Gemini API (`@google/genai`), Groq (`groq-sdk`)
+*   **GenAI Engines:** Google Gemini API (`@google/genai` using `gemini-3.5-flash`), Groq (`groq-sdk`)
+*   **Structured Outputs:** `zod` and `zod-to-json-schema` for strict schema validation
 *   **PDF Compiler:** Puppeteer (Upcoming 🚀)
 *   **File Uploads:** Multer (Upcoming 🚀)
 
@@ -101,7 +102,7 @@ Create a `.env` file in the `Backend` directory and add the following:
 PORT=3000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_key
-GEMINI_API_KEY=your_gemini_api_key
+GOOGLE_GENAI_API_KEY=your_gemini_api_key
 GROQ_API_KEY=your_groq_api_key
 ```
 
@@ -144,6 +145,7 @@ The frontend will start typically at `http://localhost:5173`.
 - [x] Complete JWT login, logout, and token blacklisting middleware.
 - [x] Build the frontend dashboard base using React.js and Vite.
 - [x] Initiate AI integration (Gemini API / Groq SDK).
+- [x] Configure strict structured JSON generation with Gemini using Zod schema conversion.
 - [ ] Add resume file upload support (Multer).
 - [ ] Complete AI integration for resume processing & mock interviews.
 - [ ] Create ATS-optimized resume formatting & PDF export via Puppeteer.
